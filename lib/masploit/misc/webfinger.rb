@@ -1,9 +1,8 @@
 require 'digest'
-require 'net/http'
-
+require_relative '../net/http/httprequest'
 class WebFingerMatcher
-  def initialize
-
+  def initialize url
+    @url = url
   end
 
   def is_picture?(content)
@@ -18,15 +17,7 @@ class WebFingerMatcher
 
   end
 
-
-  def self.new_instance
-    if @@matcher == nil
-      @@matcher = WebFingerMatcher.new
-    end
-    @@matcher
-  end
-
-  def match_content_framework(url)
+  def get_framework
 
   end
 end

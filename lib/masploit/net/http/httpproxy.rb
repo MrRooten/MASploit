@@ -8,7 +8,8 @@ class HTTPProxy
   end
 
   def initialize(port,req_handler,res_handler,proxy_server=nil)
-    if proxy_server != nil 
+    @request_queue = Queue.new
+    unless proxy_server.nil?
       @server = WEBrick::HTTPProxyServer.new(
         :Port => port,
         :AccessLog => [],
@@ -22,8 +23,6 @@ class HTTPProxy
         :ProxyURI => URI.parse(proxy_server)
       )
     end
-    @request_queue = Queue.new
-
 
   end
 
