@@ -1,36 +1,30 @@
-require 'webrick/httpproxy'
+require 'ritm'
 
 class HTTPProxy
 
-  def content_handler(req,res)
-    print("[INFO]"+req.request_line)
-    @request_queue << req
-  end
+  def request_handler(req) ;end
 
-  def initialize(port,req_handler,res_handler,proxy_server=nil)
-    @request_queue = Queue.new
-    unless proxy_server.nil?
-      @server = WEBrick::HTTPProxyServer.new(
-        :Port => port,
-        :AccessLog => [],
-        :ProxyContentHandler => method(:content_handler)
-      )
-    else
-      @server = WEBrick::HTTPProxyServer.new(
-        :Port => port,
-        :AccessLog => [],
-        :ProxyContentHandler => method(:content_handler),
-        :ProxyURI => URI.parse(proxy_server)
-      )
+  def response_handler(req,res) ;end
+  def initialize(port,proxy_server:nil)
+    @session = Ritm::Session.new
+    @session.configure do
+      proxy[:bind_port] = port
+      misc[:upstream_proxy] = proxy_server
     end
-
   end
 
   def start
-    @server.start
+    @session.start
+    @session.on_request do |req|
+      request_handler req
+    end
+
+    @session.on_response do |req,res|
+      response_handler req,res
+    end
   end
 
   def close_server
-    @server.shutdown
+    @session.shutdown
   end
 end

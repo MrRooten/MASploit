@@ -1,22 +1,45 @@
-require 'webrick/httpproxy'
+require_relative 'lib/masploit/net/http/httpproxy'
+require_relative 'lib/masploit/net/http/httprequests'
 
-def handle_request(req,res)
-  puts "[REQUEST]" + req.request_line
-  if req.host == "example.com" || req.host == "www.example.com"
-        res.header['content-type'] = 'text/html'
-        res.header.delete('content-encoding')
-        res.body = "Access is denied."
-  end
+# ${uri [key [variable]]}
+# ${file:///password abcdefg}
+# ${file:///username abcdefg username}
+
+def match_pattern(req,key)
+  match = {}
+  match.default = []
+  reg = /\${\w+ ?#{key}}/
+
+  request = {}
+  request["url"] = req.request_uri
+  request["headers"] = req.header
+  request["body"] = req.body
+
+  request
 end
 
-if $0 == __FILE__ then
-  server = WEBrick::HTTPProxyServer.new(
-    :ProxyURI=>URI.parse("http://127.0.0.1:8080/"),
-    :Port=>8008,
-    :AccessLog=>[],
-    :ProxyContentHandler=>method(:handle_request)
-  )
-  trap 'INT'  do server.shutdown end
-  trap 'TERM' do server.shutdown end
-  server.start
+def send_request(request)
+
+end
+q_key = "123456"
+class HTTPProxy
+  def request_handler(req)
+    request = nil
+    unless (request = match_pattern(req,q_key)).nil?
+
+    end
+  end
+
+  def response_handler(req,res)
+    print(res)
+  end
+end
+proxy = HTTPProxy.new 9999
+proxy.start
+
+trap 'INT' do proxy.shutdown end
+trap 'TERM' do proxy.shutdown end
+
+while true
+
 end

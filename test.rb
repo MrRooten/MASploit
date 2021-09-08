@@ -1,9 +1,12 @@
 # coding: utf-8
 $LOAD_PATH << './lib'
 require 'utils/log.rb'
-require 'masploit/net/ip/iputils'
-begin
-  IPUtils.new("123.123.123.123")
-rescue IPUtils::ParseIPError => e
-  puts "ParseIPError #{e.message}"
-end
+require 'masploit/net/http/httprequests'
+require 'pry'
+require "zlib"
+request = open("./burpfile_nn8z").read
+body = (Request.send_from_request request).body
+conn = Zlib::GzipReader.new(StringIO.new(body))
+unzipped = conn.read
+conn.close
+p unzipped
