@@ -16,7 +16,7 @@ class Response
       @headers = @response.headers.to_hash
     end
   end
-  def body(size:-1)
+  def data(size:-1)
     if size == -1
       @response.body.to_s
     else
@@ -24,7 +24,7 @@ class Response
     end
   end
 
-  def deflate_body
+  def deflate_data
 
   end
 end
@@ -33,14 +33,65 @@ end
 class RequestRawData
   def initialize bytes,is_ssl:false
     @bytes = bytes
+    @method = nil
     @uri = nil
     @host = nil
     @headers = nil
-    @body = nil
+    @data = nil
+    @is_ssl = is_ssl
+    @http_protocol = nil
+  end
+
+  def send_request(proxy:nil)
+    http_protocol = self.http_protocol
+    method = self.method
+    host = self.host
+    uri = self.uri
+    request_uri = (@is_ssl?"https://":"http://") + host + uri
+    headers = self.headers
+    data = self.data
+    if proxy.class == Array
+    elsif proxy.class == String
+      host,port = proxy.split(":")
+      port = port.to_i
+      proxy = [host,port]
+    end
+    method = method.downcase!
+    Request.send(method,request_uri,:data=>data,:headers=>headers,:proxy=>proxy)
+  end
+
+  def is_ssl
+    @is_ssl
+  end
+
+  def http_protocol
+    if @http_protocol != nil
+      @http_protocol
+    else
+      tmp = @bytes[0,@bytes.index("\r\n")]
+      @http_protocol = tmp.split(" ")[2]
+      @http_protocol
+    end
   end
 
   def host
+    if @host != nil
+      @host
+    else
+      @headers = headers
+      @headers['host']
+    end
+  end
 
+  def method
+    if @method != nil
+      @method
+    else
+      tmp = @bytes[0,@bytes.index("\r\n")]
+      @method = tmp.split(" ")[0]
+      @method.strip!
+      @method
+    end
   end
 
   def uri
@@ -48,16 +99,52 @@ class RequestRawData
       @uri
     else
       tmp = @bytes.split("\r\n")[0]
+      @uri = tmp.split(" ")[1]
+      @uri.strip!
       @uri
     end
   end
 
   def headers
-
+    if @headers != nil
+      @headers
+    else
+      tmp = @bytes.split("\r\n\r\n")[0]
+      headers = tmp.split("\r\n")[1..]
+      @headers = {}
+      for header in headers
+        key = header[0,header.index(":")]
+        value = header[(header.index(":")+1)..]
+        key.strip!
+        value.strip!
+        key.downcase!
+        @headers[key] = value
+      end
+      @headers
+    end
   end
 
-  def body
+  def data
+    if @data != nil
+      @data
+    else
+      tmp = @bytes.split("\r\n\r\n")[1..].join
+      if tmp == nil
+        return nil
+      end
 
+      @data = tmp
+      @data
+    end
+  end
+
+  class RequestParseError < StandardError
+    attr_reader :message
+
+    def initialize message
+      super(message)
+      @message = message
+    end
   end
 end
 # self.* is Static method which is not persistent http
@@ -83,14 +170,15 @@ class Request
     @http = HTTP.persistent url
   end
 
-
-  def self.send_from_request request_bytes,proxy:nil
+  def self.send_from_request request,proxy:nil
     tmp = request_bytes.split "\r\n\r\n"
-    body = tmp[1..]
-    data = body.join
-    uri = tmp[0].split("\r\n")[0]
-    headers = tmp[0].split("\r\n")
-    headers_list = headers[1..]
+
+    data = request.data
+    uri = request.uri
+    headers = request.headers
+    method = request.method
+    http_protocol = request.http_protocol
+    host = request.host
 
     logger = Logger.get_logger
     if uri.nil?
@@ -101,35 +189,13 @@ class Request
       logger.error "The header of request is not valid"
     end
 
-    if body.nil?
-      logger.error "The body of request is not valid"
+    if data.nil?
+      logger.error "The data of request is not valid"
     end
 
     method = uri[0,uri.index(" ")].downcase #Get the method of request
-    url = uri[uri.index(" ")..] #Get the request url
-    headers_map = {}
-    for header in headers_list
-      key = header[0,header.index(":")]
-      value = header[(header.index(":")+1)..]
-      value.strip!
-      if key.nil?
-        raise ParseRequestError.new "Header is invalid"
-      end
-
-      if value.nil?
-        raise ParseRequestError.new "Header is invalid"
-      end
-      key.downcase!
-      headers_map[key] = value
-    end
-
-    host = headers_map["host"]
-    host.strip!
-    targeturi = url.split(" ")[0]
-    url = "http://" + host + targeturi
-    print(url,"\n")
-    binding.pry
-    self.send(method,url,:headers=>headers_map,:proxy=>proxy,:data=>data)
+    url = (request.is_ssl?"https://":"http://") + host + uri
+    self.send(method,url,:headers=>headers,:proxy=>proxy,:data=>data)
   end
 
   def self.get(url,params:{},headers:nil,proxy:nil,data:nil)
